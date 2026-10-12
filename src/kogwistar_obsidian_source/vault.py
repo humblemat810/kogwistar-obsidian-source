@@ -34,6 +34,10 @@ class VaultFormatError(ValueError):
     """Raised when a managed vault violates the v1 contract."""
 
 
+class ManagedNoteMissing(VaultFormatError):
+    """Raised only when a manifest-owned managed note was deleted."""
+
+
 def _json_object(value: object, name: str) -> JsonObject:
     if not isinstance(value, dict):
         raise VaultFormatError(f"{name} must be a JSON object")
@@ -75,8 +79,29 @@ def _safe_note_path(entity: GraphEntityRecord) -> str:
 
 def _safe_note_path_values(entity_id: str, entity_kind: EntityKind, title: str) -> str:
     safe_title = _SAFE_NAME.sub("", title).strip(" .") or "untitled"
+    # Keep paths portable on Windows and below common filesystem path limits.
+    if safe_title.upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{index}" for index in range(1, 10)), *(f"LPT{index}" for index in range(1, 10))}:
+        safe_title = "untitled"
+    safe_title = safe_title[:96].rstrip(" .") or "untitled"
     suffix = canonical_digest({"id": entity_id})[:12]
     return f"Notes/{entity_kind}/{safe_title}--{suffix}.md"
+
+
+def _is_canonical_ledger_path(relative_path: str, entity_id: str, entity_kind: EntityKind) -> bool:
+    """Validate a stable path without coupling it to an editable current title."""
+    relative = Path(relative_path)
+    if relative_path != relative.as_posix() or len(relative.parts) != 3:
+        return False
+    if relative.parts[:2] != ("Notes", entity_kind):
+        return False
+    suffix = f"--{canonical_digest({'id': entity_id})[:12]}.md"
+    label = relative.name.removesuffix(suffix)
+    return (
+        relative.name.endswith(suffix)
+        and bool(label)
+        and _SAFE_NAME.sub("", label) == label
+        and label == label.strip(" .")
+    )
 
 
 def _relation_from_json(value: JsonObject) -> ManagedRelationRecord:
@@ -87,10 +112,10 @@ def _relation_from_json(value: JsonObject) -> ManagedRelationRecord:
         relation_type=_text(value.get("relation_type"), "relation_type"),
         role=_text(value.get("role"), "role"),
         properties=_json_object(value.get("properties", {}), "relation properties"),
-        digest=str(value.get("digest") or ""),
+        digest=_text(value.get("digest"), "relation digest"),
     )
     expected = canonical_digest(relation.payload())
-    if relation.digest and relation.digest != expected:
+    if relation.digest != expected:
         raise VaultFormatError(f"invalid relation digest: {relation.edge_id}")
     return ManagedRelationRecord(
         edge_id=relation.edge_id,
@@ -129,6 +154,8 @@ def _note_file_digest(note: ManagedNoteRecord) -> str:
 
 
 def _render_note(note: ManagedNoteRecord) -> str:
+    if _RELATION_START in note.body or _RELATION_END in note.body:
+        raise VaultFormatError("managed note body cannot contain canonical relation markers")
     frontmatter: JsonObject = {
         "format_version": note.format_version,
         "workspace_id": note.workspace_id,
@@ -204,6 +231,17 @@ def write_snapshot(snapshot: GraphSnapshot, vault_root: str | Path) -> VaultMani
     """Materialize one graph snapshot without deleting unmanaged vault files."""
     root = Path(vault_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
+    existing_entries: dict[str, VaultManifestEntry] = {}
+    manifest_path = root / MANIFEST_RELATIVE_PATH
+    if manifest_path.exists() or manifest_path.is_symlink():
+        _ensure_safe_write_path(root, MANIFEST_RELATIVE_PATH.as_posix())
+        existing_manifest = _load_manifest(root)
+        if (
+            existing_manifest.workspace_id != snapshot.workspace_id
+            or existing_manifest.vault_id != snapshot.vault_id
+        ):
+            raise VaultFormatError("existing managed vault identity does not match graph snapshot")
+        existing_entries = {entry.entity_id: entry for entry in existing_manifest.entries}
     grouped: dict[str, list[ManagedRelationRecord]] = {}
     for relation in snapshot.relations:
         grouped.setdefault(relation.source_entity_id, []).append(relation)
@@ -237,9 +275,20 @@ def write_snapshot(snapshot: GraphSnapshot, vault_root: str | Path) -> VaultMani
             file_digest=file_digest,
             relations=note.relations,
         )
-        relative_path = _safe_note_path(entity)
+        existing_entry = existing_entries.get(entity.entity_id)
+        if existing_entry is not None:
+            if existing_entry.entity_kind != entity.entity_kind or not _is_canonical_ledger_path(
+                existing_entry.path, entity.entity_id, entity.entity_kind
+            ):
+                raise VaultFormatError(f"existing managed path is invalid: {existing_entry.path}")
+            relative_path = existing_entry.path
+        else:
+            relative_path = _safe_note_path(entity)
         _ensure_safe_write_path(root, relative_path)
-        _atomic_write(root / relative_path, _render_note(note))
+        target = root / relative_path
+        if target.exists() and existing_entry is None:
+            raise VaultFormatError(f"refusing to overwrite unmanaged vault file: {relative_path}")
+        _atomic_write(target, _render_note(note))
         entries.append(
             VaultManifestEntry(
                 path=relative_path,
@@ -323,7 +372,7 @@ def _safe_path(root: Path, relative_path: str) -> Path:
     except ValueError as exc:
         raise VaultFormatError(f"managed path escapes vault root: {relative_path}") from exc
     if not candidate.is_file():
-        raise VaultFormatError(f"managed note does not exist: {relative_path}")
+        raise ManagedNoteMissing(f"managed note does not exist: {relative_path}")
     return candidate
 
 
@@ -349,6 +398,8 @@ def _parse_note(path: Path, manifest_entry: VaultManifestEntry) -> ManagedNoteRe
         raise VaultFormatError(f"managed note has invalid frontmatter: {path}")
     frontmatter = _json_object(json.loads(text[4:separator]), "note frontmatter")
     remainder = text[separator + len("\n---\n"):]
+    if remainder.count(_RELATION_START) != 1 or remainder.count(_RELATION_END) != 1:
+        raise VaultFormatError(f"managed note has ambiguous canonical relation blocks: {path}")
     start = remainder.find(_RELATION_START)
     end = remainder.find(_RELATION_END)
     if start < 0 or end < start:
@@ -413,18 +464,13 @@ def scan_vault(vault_root: str | Path) -> VaultImportScan:
     for entry in manifest.entries:
         try:
             note = _parse_note(_safe_path(root, entry.path), entry)
-            manifest_title = entry.payload.get("title")
-            if not isinstance(manifest_title, str) or not manifest_title.strip():
-                raise VaultFormatError(f"manifest entry lacks canonical title: {entry.entity_id}")
-            expected_path = _safe_note_path_values(note.entity_id, note.entity_kind, manifest_title)
-            if entry.path != expected_path:
+            if not _is_canonical_ledger_path(entry.path, note.entity_id, note.entity_kind):
                 raise VaultFormatError(f"managed note path is not canonical: {entry.path}")
             notes.append(note)
+        except ManagedNoteMissing:
+            missing.append(entry.path)
         except (OSError, TypeError, ValueError) as exc:
-            if "does not exist" in str(exc):
-                missing.append(entry.path)
-            else:
-                errors.append(str(exc))
+            errors.append(str(exc))
     managed_paths = {entry.path for entry in manifest.entries}
     unmanaged = tuple(
         sorted(

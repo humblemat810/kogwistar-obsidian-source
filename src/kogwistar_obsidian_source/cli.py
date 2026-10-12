@@ -25,7 +25,20 @@ def _object(value: object, name: str) -> JsonObject:
     return cast(JsonObject, value)
 
 
-def _snapshot(path: str | Path) -> GraphSnapshot:
+def _text(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
+def _string(value: object, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    return value
+
+
+def load_snapshot(path: str | Path) -> GraphSnapshot:
+    """Load a strictly typed graph snapshot accepted by the CLI boundary."""
     raw = _object(json.loads(Path(path).read_text(encoding="utf-8")), "snapshot")
     entities: list[GraphEntityRecord] = []
     raw_entities = raw.get("entities", [])
@@ -35,12 +48,12 @@ def _snapshot(path: str | Path) -> GraphSnapshot:
         entity = _object(item, "entity")
         entities.append(
             GraphEntityRecord(
-                entity_id=str(entity["entity_id"]),
-                entity_kind=cast(EntityKind, str(entity["entity_kind"])),
-                title=str(entity["title"]),
-                body=str(entity.get("body", "")),
+                entity_id=_text(entity.get("entity_id"), "entity_id"),
+                entity_kind=cast(EntityKind, _text(entity.get("entity_kind"), "entity_kind")),
+                title=_text(entity.get("title"), "title"),
+                body=_string(entity.get("body", ""), "body"),
                 properties=_object(entity.get("properties", {}), "entity properties"),
-                revision=str(entity["revision"]),
+                revision=_text(entity.get("revision"), "revision"),
                 payload=_object(entity.get("payload", {}), "entity payload"),
             )
         )
@@ -52,18 +65,18 @@ def _snapshot(path: str | Path) -> GraphSnapshot:
         relation = _object(item, "relation")
         relations.append(
             ManagedRelationRecord(
-                edge_id=str(relation["edge_id"]),
-                source_entity_id=str(relation["source_entity_id"]),
-                target_entity_id=str(relation["target_entity_id"]),
-                relation_type=str(relation["relation_type"]),
-                role=str(relation["role"]),
+                edge_id=_text(relation.get("edge_id"), "edge_id"),
+                source_entity_id=_text(relation.get("source_entity_id"), "source_entity_id"),
+                target_entity_id=_text(relation.get("target_entity_id"), "target_entity_id"),
+                relation_type=_text(relation.get("relation_type"), "relation_type"),
+                role=_text(relation.get("role"), "role"),
                 properties=_object(relation.get("properties", {}), "relation properties"),
             )
         )
     return GraphSnapshot(
-        workspace_id=str(raw["workspace_id"]),
-        vault_id=str(raw["vault_id"]),
-        graph_revision=str(raw["graph_revision"]),
+        workspace_id=_text(raw.get("workspace_id"), "workspace_id"),
+        vault_id=_text(raw.get("vault_id"), "vault_id"),
+        graph_revision=_text(raw.get("graph_revision"), "graph_revision"),
         entities=tuple(entities),
         relations=tuple(relations),
     )
@@ -96,7 +109,7 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.command == "export":
-        manifest = write_snapshot(_snapshot(args.snapshot), args.vault)
+        manifest = write_snapshot(load_snapshot(args.snapshot), args.vault)
         print(json.dumps({"status": "exported", "digest": manifest.digest}, indent=2))
         return 0
     if args.command == "scan":
@@ -109,7 +122,7 @@ def main() -> int:
         }, indent=2))
         return 0 if result.valid else 2
     if args.command == "plan-import":
-        snapshot = _snapshot(args.snapshot)
+        snapshot = load_snapshot(args.snapshot)
         result = plan_import(snapshot, scan_vault(args.vault), deletion_mode=args.deletion_mode)
         encoded = json.dumps(plan_to_json(result), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
         if args.output == "-":
@@ -131,7 +144,8 @@ def main() -> int:
         raise TypeError("--host factory is not callable")
     host = cast(_ApplyHost, factory())
     deletion_mode = args.deletion_mode
-    plan_id = str(raw_plan.get("plan_id") or "").strip()
+    plan_value = raw_plan.get("plan_id")
+    plan_id = plan_value.strip() if isinstance(plan_value, str) else ""
     if not plan_id:
         raise ValueError("the import plan must contain an explicit plan_id")
     encoded_mode = raw_plan.get("deletion_mode")
@@ -143,8 +157,8 @@ def main() -> int:
     if not raw_plan.get("intents") and not raw_plan.get("tombstone_ids"):
         raise ValueError("the import plan has no mutations to apply")
     result = host.apply_import(
-        str(raw_plan.get("workspace_id") or ""),
-        str(raw_plan.get("vault_id") or ""),
+        _text(raw_plan.get("workspace_id"), "plan workspace_id"),
+        _text(raw_plan.get("vault_id"), "plan vault_id"),
         plan_id,
         deletion_mode,
     )

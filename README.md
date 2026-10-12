@@ -15,11 +15,18 @@ The normal flow is:
 export -> scan -> plan-import -> explicit apply-import
 ```
 
-Only files listed by the signed-in host's managed manifest are considered.
+Only files listed by the digest-verified managed manifest are considered.
 Graph and vault edits made from the same baseline are reported as conflicts.
 The default deletion mode is `ignore`; `tombstone` must be explicitly selected.
-The plugin never accesses a Kogwistar engine directly. LLM-Wiki supplies the
-host callbacks that perform ACL checks and revision-fenced maintenance patches.
+The plugin never accesses a Kogwistar engine directly. The LLM-Wiki host
+binding must supply callbacks that perform ACL checks and revision-fenced
+maintenance patches; this first source-package release deliberately fails
+closed when those callbacks are not present.
+
+The manifest digest detects accidental corruption and establishes the exported
+baseline; it is not a signature. A writer with vault access can recompute a
+digest, so graph mutation remains protected by the host's authenticated ACL,
+revision, and graph-space checks at explicit apply time.
 
 Managed notes contain JSON frontmatter between YAML delimiters. JSON is valid
 YAML frontmatter and lets this package parse the format without a YAML runtime

@@ -61,6 +61,35 @@ def plan_to_json(plan: VaultSyncPlan) -> JsonObject:
     return payload
 
 
+def _finalize_plan(
+    *,
+    snapshot: GraphSnapshot,
+    deletion_mode: DeletionMode,
+    intents: list[SyncIntent],
+    tombstones: list[str],
+    conflicts: list[VaultConflict],
+) -> VaultSyncPlan:
+    """Normalize a plan before deriving its stable, content-addressed identity."""
+    provisional = VaultSyncPlan(
+        plan_id="0" * 64,
+        workspace_id=snapshot.workspace_id,
+        vault_id=snapshot.vault_id,
+        deletion_mode=deletion_mode,
+        intents=tuple(sorted(intents, key=lambda item: item.entity_id)),
+        tombstone_ids=tuple(sorted(tombstones)),
+        conflicts=tuple(sorted(conflicts, key=lambda item: (item.entity_id, item.reason, item.message))),
+    )
+    return VaultSyncPlan(
+        plan_id=canonical_digest(_plan_payload(provisional)),
+        workspace_id=provisional.workspace_id,
+        vault_id=provisional.vault_id,
+        deletion_mode=provisional.deletion_mode,
+        intents=provisional.intents,
+        tombstone_ids=provisional.tombstone_ids,
+        conflicts=provisional.conflicts,
+    )
+
+
 def plan_import(
     snapshot: GraphSnapshot,
     scan: VaultImportScan,
@@ -81,6 +110,13 @@ def plan_import(
                 message="vault scan is invalid; no graph mutation is permitted",
             )
         )
+        return _finalize_plan(
+            snapshot=snapshot,
+            deletion_mode=deletion_mode,
+            intents=intents,
+            tombstones=tombstones,
+            conflicts=conflicts,
+        )
     elif scan.manifest.workspace_id != snapshot.workspace_id or scan.manifest.vault_id != snapshot.vault_id:
         conflicts.append(
             VaultConflict(
@@ -88,6 +124,13 @@ def plan_import(
                 reason="invalid",
                 message="vault identity does not match graph snapshot",
             )
+        )
+        return _finalize_plan(
+            snapshot=snapshot,
+            deletion_mode=deletion_mode,
+            intents=intents,
+            tombstones=tombstones,
+            conflicts=conflicts,
         )
     current = {entity.entity_id: entity for entity in snapshot.entities}
     relations = _relations_by_source(snapshot)
@@ -142,7 +185,10 @@ def plan_import(
             continue
         seen_relation_ids.update(relation.edge_id for relation in note.relations)
         vault_changed = note.observed_file_digest != entry.file_digest
-        graph_changed = entity_digest(entity, relations.get(entity.entity_id, ())) != entry.base_digest
+        graph_changed = (
+            entity.revision != entry.base_revision
+            or entity_digest(entity, relations.get(entity.entity_id, ())) != entry.base_digest
+        )
         if graph_changed and vault_changed:
             conflicts.append(
                 VaultConflict(
@@ -168,22 +214,11 @@ def plan_import(
     if deletion_mode == "tombstone":
         tombstones.extend(sorted(missing_ids))
 
-    provisional = VaultSyncPlan(
-        plan_id="0" * 64,
-        workspace_id=snapshot.workspace_id,
-        vault_id=snapshot.vault_id,
+    return _finalize_plan(
+        snapshot=snapshot,
         deletion_mode=deletion_mode,
-        intents=tuple(sorted(intents, key=lambda item: item.entity_id)),
-        tombstone_ids=tuple(tombstones),
-        conflicts=tuple(sorted(conflicts, key=lambda item: (item.entity_id, item.reason))),
-    )
-    return VaultSyncPlan(
-        plan_id=canonical_digest(_plan_payload(provisional)),
-        workspace_id=provisional.workspace_id,
-        vault_id=provisional.vault_id,
-        deletion_mode=provisional.deletion_mode,
-        intents=provisional.intents,
-        tombstone_ids=provisional.tombstone_ids,
-        conflicts=provisional.conflicts,
+        intents=intents,
+        tombstones=tombstones,
+        conflicts=conflicts,
     )
 
