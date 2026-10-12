@@ -185,7 +185,7 @@ def test_plugin_routes_round_trip_graph_data_through_a_managed_vault(
         return WorkbenchRequest(payload=payload)
 
     routes["export"](request({"workspace_id": "workspace-a", "vault_id": "vault-a"}))
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     text = note.read_text(encoding="utf-8").replace("Original body.", "Edited through Obsidian.")
     start = text.index("<!-- KOGWISTAR-RELATIONS-START -->")
     end = text.index("<!-- KOGWISTAR-RELATIONS-END -->")
@@ -242,7 +242,7 @@ def test_plugin_apply_rejects_a_stale_revision_at_the_host_boundary(
     def request(payload: JsonObject) -> WorkbenchRequest:
         return WorkbenchRequest(payload=payload)
     routes["export"](request({"workspace_id": "workspace-a", "vault_id": "vault-a"}))
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(note.read_text(encoding="utf-8").replace("Original body.", "Edited."), encoding="utf-8")
     plan_response = routes["plan-import"](request({"workspace_id": "workspace-a", "vault_id": "vault-a"}))
     plan_value = plan_response.body.get("plan_id")
