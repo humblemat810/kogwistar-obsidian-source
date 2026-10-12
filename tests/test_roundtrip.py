@@ -72,7 +72,7 @@ def test_export_scan_import_plan_is_lossless_for_unchanged_vault(tmp_path: Path)
 
 def test_user_note_edit_creates_one_typed_intent(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(note.read_text(encoding="utf-8").replace("A managed note.", "Edited note."), encoding="utf-8")
 
     plan = plan_import(_snapshot(), scan_vault(tmp_path))
@@ -84,7 +84,7 @@ def test_user_note_edit_creates_one_typed_intent(tmp_path: Path) -> None:
 
 def test_concurrent_graph_and_vault_edits_are_conflicts(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(note.read_text(encoding="utf-8").replace("A managed note.", "Edited note."), encoding="utf-8")
     changed = _snapshot()
     changed_entity = GraphEntityRecord(
@@ -112,7 +112,7 @@ def test_concurrent_graph_and_vault_edits_are_conflicts(tmp_path: Path) -> None:
 
 def test_revision_only_graph_change_conflicts_with_a_vault_edit(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(note.read_text(encoding="utf-8").replace("A managed note.", "Edited note."), encoding="utf-8")
     original = _snapshot()
     changed = GraphSnapshot(
@@ -132,7 +132,7 @@ def test_revision_only_graph_change_conflicts_with_a_vault_edit(tmp_path: Path) 
 
 def test_invalid_scan_never_carries_mutation_intents(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(note.read_text(encoding="utf-8").replace("A managed note.", "Edited note."), encoding="utf-8")
     manifest = tmp_path / ".kogwistar" / "obsidian-source" / "manifest.json"
     manifest.write_text("{not json", encoding="utf-8")
@@ -168,7 +168,7 @@ def test_plan_identity_is_independent_of_scan_note_order(tmp_path: Path) -> None
 
 def test_snapshot_identity_mismatch_never_carries_mutation_intents(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(note.read_text(encoding="utf-8").replace("A managed note.", "Edited note."), encoding="utf-8")
     original = _snapshot()
     wrong_snapshot = GraphSnapshot(
@@ -189,7 +189,7 @@ def test_snapshot_identity_mismatch_never_carries_mutation_intents(tmp_path: Pat
 
 def test_missing_managed_file_only_tombstones_when_opted_in(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.unlink()
     scan = scan_vault(tmp_path)
 
@@ -217,7 +217,7 @@ def test_tampered_manifest_and_unmanaged_markdown_are_reported(tmp_path: Path) -
 
 def test_note_workspace_mismatch_is_rejected_before_planning(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(
         note.read_text(encoding="utf-8").replace('"workspace_id": "workspace-a"', '"workspace_id": "other-workspace"'),
         encoding="utf-8",
@@ -232,7 +232,7 @@ def test_note_workspace_mismatch_is_rejected_before_planning(tmp_path: Path) -> 
 
 def test_relation_endpoint_outside_snapshot_is_rejected(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     text = note.read_text(encoding="utf-8")
     start = text.index("<!-- KOGWISTAR-RELATIONS-START -->")
     end = text.index("<!-- KOGWISTAR-RELATIONS-END -->")
@@ -252,7 +252,7 @@ def test_relation_endpoint_outside_snapshot_is_rejected(tmp_path: Path) -> None:
 
 def test_relation_digest_is_required(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     text = note.read_text(encoding="utf-8")
     start = text.index("<!-- KOGWISTAR-RELATIONS-START -->")
     end = text.index("<!-- KOGWISTAR-RELATIONS-END -->")
@@ -269,7 +269,7 @@ def test_relation_digest_is_required(tmp_path: Path) -> None:
 
 def test_duplicate_canonical_relation_markers_are_rejected(tmp_path: Path) -> None:
     write_snapshot(_snapshot(), tmp_path)
-    note = next((tmp_path / "Notes" / "node").glob("*alpha*.md"))
+    note = next((tmp_path / "Notes" / "node").glob("*Alpha*.md"))
     note.write_text(
         note.read_text(encoding="utf-8") + "\n<!-- KOGWISTAR-RELATIONS-START -->\n[]\n<!-- KOGWISTAR-RELATIONS-END -->\n",
         encoding="utf-8",
