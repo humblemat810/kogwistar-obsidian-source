@@ -9,11 +9,12 @@ from pathlib import Path
 import pytest
 
 from kogwistar_obsidian_source.cli import load_snapshot
+from kogwistar_obsidian_source.models import JsonObject
 from kogwistar_obsidian_source.sync import plan_import, plan_to_json
 from kogwistar_obsidian_source.vault import scan_vault, write_snapshot
 
 
-SNAPSHOT = {
+SNAPSHOT: JsonObject = {
     "format_version": "kogwistar-obsidian-source/v1",
     "workspace_id": "workspace-a",
     "vault_id": "vault-a",
