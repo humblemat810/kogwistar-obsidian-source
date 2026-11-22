@@ -12,7 +12,7 @@
 | Conflict classification | Mirror `sync.py`; invalid vault, identity mismatch, both-changed, invalid relation endpoints, duplicate relation IDs | DONE | Planning test pending |
 | Plan payload and identity | Mirror `sync.py`; canonical payload, provisional zero digest, content-addressed `plan_id` | DONE | Golden payload test pending |
 | CLI parity | Mirror `cli.py` commands and exit codes for `export`, `scan`, `plan-import`, `conflicts`, `apply-import` | IN PROGRESS | CLI fixture suite |
-| Host apply-import seam | Define embedded/native Kogwistar host contract; keep fail-closed behavior; validate plan identity, deletion mode, workspace and vault | BLOCKED | Host contract plus integration test |
-| Workbench extension | Mirror `plugin.py` namespaced route and write-scoped apply handler | BLOCKED | Python plugin contract parity |
+| Host apply-import seam | Define embedded/native Kogwistar host contract; keep fail-closed behavior; validate plan identity, deletion mode, workspace and vault | DONE | Host contract plus integration test |
+| Workbench extension | Mirror `plugin.py` namespaced route and write-scoped apply handler | DONE | Python plugin contract parity |
 | Cross-language parity | Golden fixtures for canonical digest, manifest, note rendering, scan diagnostics, plans and conflicts | TODO | Python/Rust fixture suite |
 | CI | Add fmt, clippy, test and cross-language parity workflow | TODO | Workflow green |
