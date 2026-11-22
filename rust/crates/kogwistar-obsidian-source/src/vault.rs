@@ -280,13 +280,12 @@ fn render_note(note: &ManagedNoteRecord) -> Result<String> {
         .map(relation_payload_with_digest)
         .collect::<Value>();
     Ok(format!(
-        "---\n{}\n---\n\n{}\n\n{}\n{}\n{}\n{}\n",
+        "---\n{}\n---\n\n{}\n\n{}\n{}\n{}\n",
         json_pretty_sorted(&frontmatter),
         note.body.trim_end(),
         RELATION_START,
         json_pretty_sorted(&relations),
         RELATION_END,
-        "",
     ))
 }
 

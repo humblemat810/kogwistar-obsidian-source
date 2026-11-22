@@ -14,5 +14,5 @@
 | CLI parity | Mirror `cli.py` commands and exit codes for `export`, `scan`, `plan-import`, `conflicts`, `apply-import` | IN PROGRESS | CLI fixture suite |
 | Host apply-import seam | Define embedded/native Kogwistar host contract; keep fail-closed behavior; validate plan identity, deletion mode, workspace and vault | DONE | Host contract plus integration test |
 | Workbench extension | Mirror `plugin.py` namespaced route and write-scoped apply handler | DONE | Python plugin contract parity |
-| Cross-language parity | Golden fixtures for canonical digest, manifest, note rendering, scan diagnostics, plans and conflicts | TODO | Python/Rust fixture suite |
+| Cross-language parity | Golden fixtures for canonical digest, manifest, note rendering, scan diagnostics, plans and conflicts | DONE | Python/Rust fixture suite |
 | CI | Add fmt, clippy, test and cross-language parity workflow | TODO | Workflow green |

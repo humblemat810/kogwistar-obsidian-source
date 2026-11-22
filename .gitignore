@@ -3,6 +3,7 @@ __pycache__/
 .ruff_cache/
 .joblib/
 .tmp-*
+.tmp_source_pytest/
 *.egg-info/
 .venv/
 dist/
