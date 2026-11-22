@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use kogwistar_obsidian_source::canonical::FORMAT_VERSION;
+use kogwistar_obsidian_source::host::validate_host_spec;
 use kogwistar_obsidian_source::models::{DeletionMode, GraphSnapshot};
 use kogwistar_obsidian_source::sync::{plan_import, plan_to_json};
 use kogwistar_obsidian_source::vault::{json_pretty_sorted, scan_vault, write_snapshot};
@@ -133,6 +134,7 @@ fn main() -> Result<()> {
             if arguments.len() != 3 || arguments[1] != "--host" {
                 usage();
             }
+            validate_host_spec(&arguments[2])?;
             bail!("Rust apply-import requires an embedded Kogwistar host; Python compatibility CLI remains authoritative");
         }
         _ => usage(),

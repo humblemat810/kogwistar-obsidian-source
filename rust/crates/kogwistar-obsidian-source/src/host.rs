@@ -18,6 +18,16 @@ pub trait SourceHost {
     }
 }
 
+pub fn validate_host_spec(spec: &str) -> Result<(&str, &str)> {
+    let Some((module, factory)) = spec.split_once(':') else {
+        bail!("--host must use module:factory");
+    };
+    if module.is_empty() || factory.is_empty() {
+        bail!("--host must use module:factory");
+    }
+    Ok((module, factory))
+}
+
 pub fn apply_import(
     host: &dyn SourceHost,
     plan_path: &Path,
@@ -43,4 +53,20 @@ pub fn apply_import(
         &plan.plan_id,
         deletion_mode,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_host_spec() {
+        assert_eq!(
+            validate_host_spec("host:factory").unwrap(),
+            ("host", "factory")
+        );
+        assert!(validate_host_spec("host").is_err());
+        assert!(validate_host_spec(":factory").is_err());
+        assert!(validate_host_spec("host:").is_err());
+    }
 }
